@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"log"
 	"net/http"
 	"os"
@@ -9,33 +10,46 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	_ "github.com/lib/pq"
+	"github.com/nicholasjackson/env"
 	"github.com/olixpin/student-api/handlers"
 )
 
-var bindAddress = ":8080"
+var (
+	bindAddress = env.String("BIND_ADDRESS", false, ":8080", "Bind address for the server")
+	dbURL       = env.String("DB_URL", false, "", "Database connection URL")
+)
 
 func main() {
+	env.Parse()
+
 	l := log.New(os.Stdout, "students-api ", log.LstdFlags)
-	sh := handlers.NewStudents(l)
+
+	// Test database connection
+	db, err := sql.Open("postgres", *dbURL)
+	if err != nil {
+		l.Fatalf("Error opening database: %v", err)
+	}
+	defer db.Close()
+
+	err = db.Ping()
+	if err != nil {
+		l.Fatalf("Error connecting to database: %v", err)
+	}
+	l.Println("Successfully connected to the database")
+
+	sh := handlers.NewStudents(l, db)
 	sm := mux.NewRouter()
 
-	getRouter := sm.Methods(http.MethodGet).Subrouter()
-	getRouter.HandleFunc("/students", sh.GetStudents)
-	getRouter.HandleFunc("/students/{id:[0-9]+}", sh.GetStudentByID)
-
-	postRouter := sm.Methods(http.MethodPost).Subrouter()
-	postRouter.HandleFunc("/students", sh.AddStudent)
-	postRouter.Use(sh.MiddlewareStudentValidation)
-
-	putRouter := sm.Methods(http.MethodPut).Subrouter()
-	putRouter.HandleFunc("/students/{id:[0-9]+}", sh.UpdateStudent)
-	putRouter.Use(sh.MiddlewareStudentValidation)
-
-	deleteRouter := sm.Methods(http.MethodDelete).Subrouter()
-	deleteRouter.HandleFunc("/students/{id:[0-9]+}", sh.DeleteStudent)
+	sm.HandleFunc("/api/v1/students", sh.GetStudents).Methods(http.MethodGet)
+	sm.HandleFunc("/api/v1/students/{id:[0-9]+}", sh.GetStudentByID).Methods(http.MethodGet)
+	sm.HandleFunc("/api/v1/students", sh.AddStudent).Methods(http.MethodPost)
+	sm.HandleFunc("/api/v1/students/{id:[0-9]+}", sh.UpdateStudent).Methods(http.MethodPut)
+	sm.HandleFunc("/api/v1/students/{id:[0-9]+}", sh.DeleteStudent).Methods(http.MethodDelete)
+	sm.HandleFunc("/healthcheck", sh.HealthCheck).Methods(http.MethodGet)
 
 	s := http.Server{
-		Addr:         bindAddress,
+		Addr:         *bindAddress,
 		Handler:      sm,
 		ErrorLog:     l,
 		ReadTimeout:  5 * time.Second,
@@ -44,9 +58,8 @@ func main() {
 	}
 
 	go func() {
-		l.Println("Starting server on port", bindAddress)
-		err := s.ListenAndServe()
-		if err != nil {
+		l.Println("Starting server on port", *bindAddress)
+		if err := s.ListenAndServe(); err != nil {
 			l.Printf("Error starting server: %s\n", err)
 			os.Exit(1)
 		}
