@@ -1,14 +1,16 @@
 package data
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"time"
 )
 
 type Student struct {
-	ID             uint      `json:"id" gorm:"primary_key"`
+	ID             uint      `json:"id"`
 	FirstName      string    `json:"first_name"`
 	LastName       string    `json:"last_name"`
 	Age            int       `json:"age"`
@@ -17,109 +19,109 @@ type Student struct {
 	Class          string    `json:"class"`
 	Address        string    `json:"address"`
 	PhoneNumber    string    `json:"phone_number"`
-	CreatedOn      string    `json:"-"`
-	UpdatedOn      string    `json:"-"`
-	DeletedOn      string    `json:"-"`
+	CreatedOn      time.Time `json:"-"`
+	UpdatedOn      time.Time `json:"-"`
 }
 
-func (p *Student) FromJSON(r io.Reader) error {
+func (s *Student) FromJSON(r io.Reader) error {
 	e := json.NewDecoder(r)
-	return e.Decode(p)
+	return e.Decode(s)
 }
 
-func (p *Student) ToJSON(w io.Writer) error {
+func (s *Student) ToJSON(w io.Writer) error {
 	e := json.NewEncoder(w)
-	return e.Encode(p)
-}
-
-func (p *Student) Validate() error {
-	// Implement validation logic
-	return nil
+	return e.Encode(s)
 }
 
 type Students []*Student
 
 func (s *Students) ToJSON(w io.Writer) error {
-	enc := json.NewEncoder(w)
-	return enc.Encode(s)
-}
-
-func (s *Students) FromJSON(r io.Reader) error {
-	e := json.NewDecoder(r)
-	return e.Decode(s)
-}
-
-func GetStudents() Students {
-	return studentList
-}
-
-func GetStudentByID(id uint) (*Student, error) {
-	student, _, err := findStudent(id)
-	return student, err
-}
-
-func AddStudent(s *Student) {
-	s.ID = getNextID()
-	studentList = append(studentList, s)
-}
-
-func UpdateStudent(id uint, s *Student) error {
-	_, i, err := findStudent(id)
-	if err != nil {
-		return err
-	}
-	studentList[i] = s
-	return nil
-}
-
-func DeleteStudent(id uint) error {
-	_, i, err := findStudent(id)
-	if err != nil {
-		return err
-	}
-	studentList = append(studentList[:i], studentList[i+1:]...)
-	return nil
+	e := json.NewEncoder(w)
+	return e.Encode(s)
 }
 
 var ErrStudentNotFound = errors.New("student not found")
 
-func findStudent(id uint) (*Student, int, error) {
-	for i, s := range studentList {
-		if s.ID == id {
-			return s, i, nil
+func GetStudents(db *sql.DB) (Students, error) {
+	stmt := `SELECT id, first_name, last_name, age, email, enrollment_date, class, address, phone_number FROM students`
+	rows, err := db.Query(stmt)
+	if err != nil {
+		log.Printf("Error executing query: %v", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	students := Students{}
+	for rows.Next() {
+		var student Student
+		err := rows.Scan(&student.ID, &student.FirstName, &student.LastName, &student.Age, &student.Email, &student.EnrollmentDate, &student.Class, &student.Address, &student.PhoneNumber)
+		if err != nil {
+			log.Printf("Error scanning row: %v", err)
+			return nil, err
 		}
+		students = append(students, &student)
 	}
-	return nil, -1, ErrStudentNotFound
+	return students, nil
 }
 
-func getNextID() uint {
-	if len(studentList) == 0 {
-		return 1
+func GetStudentByID(db *sql.DB, id uint) (*Student, error) {
+	stmt := `SELECT id, first_name, last_name, age, email, enrollment_date, class, address, phone_number FROM students WHERE id = $1`
+	row := db.QueryRow(stmt, id)
+
+	var student Student
+	err := row.Scan(&student.ID, &student.FirstName, &student.LastName, &student.Age, &student.Email, &student.EnrollmentDate, &student.Class, &student.Address, &student.PhoneNumber)
+	if err == sql.ErrNoRows {
+		return nil, ErrStudentNotFound
+	} else if err != nil {
+		log.Printf("Error scanning row: %v", err)
+		return nil, err
 	}
-	return studentList[len(studentList)-1].ID + 1
+	return &student, nil
 }
 
-var studentList = Students{
-	{
-		ID:             1,
-		FirstName:      "John",
-		LastName:       "Doe",
-		Age:            20,
-		Email:          "john.doe@example.com",
-		EnrollmentDate: time.Now(),
-		Class:          "A",
-		Address:        "123 Main St, Anytown USA",
-		PhoneNumber:    "555-1234",
-	},
-	{
-		ID:             2,
-		FirstName:      "Jane",
-		LastName:       "Smith",
-		Age:            22,
-		Email:          "jane.smith@example.com",
-		EnrollmentDate: time.Now(),
-		Class:          "B",
-		Address:        "456 Oak Rd, Anytown USA",
-		PhoneNumber:    "555-5678",
-	},
+func AddStudent(db *sql.DB, student *Student) error {
+	stmt := `INSERT INTO students (first_name, last_name, age, email, enrollment_date, class, address, phone_number) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`
+	err := db.QueryRow(stmt, student.FirstName, student.LastName, student.Age, student.Email, student.EnrollmentDate, student.Class, student.Address, student.PhoneNumber).Scan(&student.ID)
+	if err != nil {
+		log.Printf("Error executing insert: %v", err)
+	}
+	return err
+}
+
+func UpdateStudent(db *sql.DB, id uint, student *Student) error {
+	stmt := `UPDATE students SET first_name = $1, last_name = $2, age = $3, email = $4, enrollment_date = $5, class = $6, address = $7, phone_number = $8, updated_on = $9 WHERE id = $10`
+	res, err := db.Exec(stmt, student.FirstName, student.LastName, student.Age, student.Email, student.EnrollmentDate, student.Class, student.Address, student.PhoneNumber, time.Now(), id)
+	if err != nil {
+		log.Printf("Error executing update: %v", err)
+		return err
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		log.Printf("Error getting rows affected: %v", err)
+		return err
+	}
+	if rowsAffected == 0 {
+		return ErrStudentNotFound
+	}
+	return nil
+}
+
+func DeleteStudent(db *sql.DB, id uint) error {
+	stmt := `DELETE FROM students WHERE id = $1`
+	res, err := db.Exec(stmt, id)
+	if err != nil {
+		log.Printf("Error executing delete: %v", err)
+		return err
+	}
+
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		log.Printf("Error getting rows affected: %v", err)
+		return err
+	}
+	if rowsAffected == 0 {
+		return ErrStudentNotFound
+	}
+	return nil
 }
