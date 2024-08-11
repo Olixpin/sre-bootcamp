@@ -1,0 +1,10 @@
+name: Sre Bootcamp CICD
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ['self-hosted', 'macOS', 'X64']
+  steps:
+  - uses: actions/checkout@v4
+    run: echo "hello world"
