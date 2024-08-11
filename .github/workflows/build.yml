@@ -4,7 +4,9 @@ on: [push]
 
 jobs:
   build:
-    runs-on: ['self-hosted', 'macOS', 'X64']
-  steps:
-  - uses: actions/checkout@v4
-    run: echo "hello world"
+    runs-on: ["self-hosted", "macOS", "X64"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Display Hello world
+        run: echo "Hello world"
