@@ -1,6 +1,8 @@
 name: Sre Bootcamp CICD
 
-on: [push]
+on:
+  push:
+  workflow_dispatch:
 
 jobs:
   build-and-test:
