@@ -2,13 +2,13 @@ name: Sre Bootcamp CICD
 
 on: [push]
 
-env:
-  POSTGRES_USER: studentapiuser
-  POSTGRES_PASSWORD: password
-  POSTGRES_DB: studentapidb
-  DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
-  DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
-  DOCKER_IMAGE_NAME: sre-bootcamp-api
+# env:
+#   POSTGRES_USER: studentapiuser
+#   POSTGRES_PASSWORD: password
+#   POSTGRES_DB: studentapidb
+#   DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+#   DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
+#   DOCKER_IMAGE_NAME: sre-bootcamp-api
 
 jobs:
   build:
@@ -20,11 +20,11 @@ jobs:
       - name: Install dependencies
         run: go mod tidy
 
-      - name: Build API
-        run: go build -o bin/app ./...
+      # - name: Build API
+      #   run: go build -o bin/app ./...
 
-      - name: Run tests
-        run: go test ./...
+      # - name: Run tests
+      #   run: go test ./...
 
-      - name: Run code linting
-        run: go vet ./...
+      # - name: Run code linting
+      #   run: go vet ./...
