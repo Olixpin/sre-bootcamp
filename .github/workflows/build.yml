@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: [self-hosted, macos]
+    runs-on: [self-hosted, linux]
 
     env:
       POSTGRES_USER: studentapiuser
