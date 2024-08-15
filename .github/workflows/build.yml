@@ -8,27 +8,12 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: [self-hosted, linux]
+    runs-on: [self-hosted, macos]
 
     env:
       POSTGRES_USER: studentapiuser
       POSTGRES_PASSWORD: password
       POSTGRES_DB: studentapidb
-
-    services:
-      postgress:
-        image: postgres:13
-        env:
-          POSTGRES_USER: ${{ env.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ env.POSTGRES_PASSWORD }}
-          POSTGRES_DB: ${{ env.POSTGRES_DB }}
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd="pg_isready -U studentapiuser" 
-          --health-interval=10s 
-          --health-timeout=5s 
-          --health-retries=5
 
     steps:
       - name: Checkout code
@@ -43,7 +28,15 @@ jobs:
         run: go mod download
 
       - name: Run tests
-        run: go test ./...
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: ${{ env.POSTGRES_USER }}
+          PGPASSWORD: ${{ env.POSTGRES_PASSWORD }}
+          PGDATABASE: ${{ env.POSTGRES_DB }}
+        run: |
+          psql -c 'CREATE DATABASE studentapidb;' || true
+          go test ./...
 
       - name: Build Docker image
         run: docker build . -t student-api
