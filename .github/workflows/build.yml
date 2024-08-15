@@ -9,10 +9,6 @@ on:
 jobs:
   build-and-test:
     runs-on: [self-hosted, macos]
-    env:
-      POSTGRES_USER: studentapiuser
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: studentapidb
 
     services:
       postgress:
@@ -33,6 +29,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Load environment variables from .env file
+        run: ./load-env.sh
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -47,7 +46,7 @@ jobs:
       - name: Build Docker image
         run: docker build . -t student-api
 
-      - name: Push to Docker Hub
+      - name: Docker Login and Push
         env:
           DOCKER_USER: ${{ secrets.DOCKER_USER }}
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
